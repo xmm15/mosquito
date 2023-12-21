@@ -73,7 +73,7 @@ void map_print(map_t *map)
     map_t *tmp = map;
     while (tmp != NULL)
     {
-        printf("%s : %s\n", tmp->key, tmp->value);
+        printf("%s: %s\n", tmp->key, tmp->value);
         tmp = tmp->next;
     }
 }

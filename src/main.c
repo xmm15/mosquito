@@ -2,6 +2,7 @@
 #include <assert.h>
 #include "stream_server.h"
 #include "connection.h"
+#include "http.h"
 
 int main(){
     stream_server_t *s = stream_server_create(10,false,false);
@@ -12,11 +13,16 @@ int main(){
         connection_t *conn = stream_server_accept(s);
         puts(conn->address);
 
-        char buff[1024] = { 0 };
+        char buff[4096] = { 0 };
 
         stream_read(conn->stream,buff, 1023);
 
-        puts(buff);
+        if(strstr(buff, "\r\n\r\n")){
+            map_print(parse_http_req(buff));
+        }
+        //printf("Haeder size is => ")
+
+        //puts(buff);
     }
 
 

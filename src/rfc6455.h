@@ -51,3 +51,5 @@ void send_close_frame(char *client_close_message,int sockfd,int pos);
 void send_ping_frame(int sockfd);
 
 void send_pong_frame(char *client_client_ping,int sockfd);
+
+void write_ws_accept(int sock,map_t *http_req);

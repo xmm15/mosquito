@@ -47,6 +47,35 @@ char *createAcceptString(char *input)
     return (char *)x_64ret;
 }
 
+void write_ws_accept(int sock,map_t *http_req){
+        map_print(http_req);
+            bool success = false;
+            char *key = createAcceptString(map_get_ref(http_req,"sec-websocket-key"));
+
+            response_builder *rs = response_builder_create();
+            response_builder_set_code(rs, "101");
+            response_builder_set_status_name(rs, "Switching Protocols");
+            response_builder_set_header(rs,"Connection","Upgrade");
+            response_builder_set_header(rs,"Upgrade","websocket");
+
+            response_builder_set_header(rs,"Sec-WebSocket-Accept",key);
+
+            char *resp = response_builder_to_string(rs);
+            if(resp)
+            {
+                if(send(sock,resp,strlen(resp),0) > 0){
+
+                    add_to_pfds(&pfds,sock,&fd_count_g,&fd_size_g);
+                    success = true;
+                }
+            }
+            
+            free(resp);
+            response_builder_free(rs);
+
+            if(!success) close(sock);
+}
+
 unsigned int createIntFromByte(unsigned int bytes[], size_t len)
 {
     unsigned int result = bytes[0];

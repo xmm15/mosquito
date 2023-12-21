@@ -1,11 +1,7 @@
 #include "list.h"
 #include <assert.h>
+#include "stream_server.h"
 
 int main(){
-    list_t *x = list_create();
-
-    list_pushback(x,"hello");
-
-    assert(strcmp(list_get(x,0), "hello") == 0);
-    return 0;
+    stream_server_t *s = stream_server_create(10,false,false);
 }

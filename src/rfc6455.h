@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include "base64.h"
 #include "http.h"
+#include "connection.h"
 
 extern struct pollfd *pfds;
 extern int fd_count_g;
@@ -52,4 +53,6 @@ void send_ping_frame(int sockfd);
 
 void send_pong_frame(char *client_client_ping,int sockfd);
 
-void write_ws_accept(int sock,map_t *http_req);
+void write_ws_accept(connection_t *,map_t *http_req);
+
+void write_ws_decline(connection_t *conn);

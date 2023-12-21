@@ -7,7 +7,6 @@ int fd_size_g = 0;
 cnd_t poll_condition;
 mtx_t poll_mutex;
 bool keep_chat_alive = true;
-list_t *pfd_ids;
 
 bool validate_WS_connection(map_t *request)
 {
@@ -32,6 +31,10 @@ bool validate_WS_connection(map_t *request)
 
 char *createAcceptString(char *input)
 {
+    if(input == NULL){
+        return NULL;
+    }
+
     string_t *conc = string_create_from_string(input);
     string_concat(conc, GUID, strlen(GUID));
 
@@ -47,10 +50,28 @@ char *createAcceptString(char *input)
     return (char *)x_64ret;
 }
 
-void write_ws_accept(int sock,map_t *http_req){
+void write_ws_decline(connection_t *conn){
+    response_builder *rs = response_builder_create();
+    response_builder_set_code(rs, "403");
+    response_builder_set_status_name(rs,"Forbidden");
+
+    char *resp = response_builder_to_string(rs);
+
+    send(conn->sock, resp, strlen(resp),0);
+
+    connection_free(conn);
+    free(resp);
+    response_builder_free(rs);
+}
+
+void write_ws_accept(connection_t *conn, map_t *http_req){
         map_print(http_req);
             bool success = false;
             char *key = createAcceptString(map_get_ref(http_req,"sec-websocket-key"));
+
+            if(key == NULL){
+                return;
+            }
 
             response_builder *rs = response_builder_create();
             response_builder_set_code(rs, "101");
@@ -63,9 +84,9 @@ void write_ws_accept(int sock,map_t *http_req){
             char *resp = response_builder_to_string(rs);
             if(resp)
             {
-                if(send(sock,resp,strlen(resp),0) > 0){
+                if(send(conn->sock,resp,strlen(resp),0) > 0){
 
-                    add_to_pfds(&pfds,sock,&fd_count_g,&fd_size_g);
+                    add_to_pfds(&pfds,conn->sock,&fd_count_g,&fd_size_g);
                     success = true;
                 }
             }
@@ -73,7 +94,7 @@ void write_ws_accept(int sock,map_t *http_req){
             free(resp);
             response_builder_free(rs);
 
-            if(!success) close(sock);
+            if(!success) connection_free(conn);
 }
 
 unsigned int createIntFromByte(unsigned int bytes[], size_t len)

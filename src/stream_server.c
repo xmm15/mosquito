@@ -119,9 +119,8 @@ connection_t *stream_server_accept(stream_server_t *s){
 
     inet_ntop(their_address.ss_family, get_in_addr((struct sockaddr *)&their_address), address, INET6_ADDRSTRLEN);
 
-    stream_t *st  = stream_create(sock);
 
-    connection_t *conn = connection_create(st,string_create_copy(inet_ntop(their_address.ss_family, get_in_addr((struct sockaddr *)&their_address), address, INET6_ADDRSTRLEN)));
+    connection_t *conn = connection_create(sock,string_create_copy((char *)inet_ntop(their_address.ss_family, get_in_addr((struct sockaddr *)&their_address), address, INET6_ADDRSTRLEN)));
 
     return conn;
 }

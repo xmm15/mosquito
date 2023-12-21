@@ -15,7 +15,7 @@ int main(){
 
         char buff[4096] = { 0 };
 
-        stream_read(conn->stream,buff, 1023);
+        recv(conn->sock,buff, 1023,0);
 
         if(strstr(buff, "\r\n\r\n")){
             map_print(parse_http_req(buff));

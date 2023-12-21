@@ -1,5 +1,5 @@
 #pragma once
-#include "stream.h"
+
 #include<stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>

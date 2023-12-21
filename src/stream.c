@@ -1,7 +1,7 @@
 #include "stream.h"
 
-size_t stream_read(stream_t *strm, char *buff, size_t *n){
-    size_t rb = 0;
+size_t stream_read(stream_t *strm, char *buff, size_t n){
+    ssize_t rb = 0;
     int total = 0;
 
     while(1){
@@ -18,14 +18,14 @@ size_t stream_read(stream_t *strm, char *buff, size_t *n){
         }
         
 
-        if(total >= n) break;
+        if(total >= (ssize_t)n) break;
     }
 
     return total;
 }
 
-size_t stream_write(stream_t *strm, char *buff, size_t *n){
-    size_t wb = 0;
+size_t stream_write(stream_t *strm, char *buff, size_t n){
+    ssize_t wb = 0;
     int total = 0;
 
     while(1){
@@ -42,7 +42,7 @@ size_t stream_write(stream_t *strm, char *buff, size_t *n){
         }
         
 
-        if(total >= n) break;
+        if(total >= (ssize_t)n) break;
     }
 
     return total;
@@ -50,6 +50,8 @@ size_t stream_write(stream_t *strm, char *buff, size_t *n){
 
 void stream_close(stream_t *strm){
     close(strm->handler);
+    free(strm);
+    strm = NULL;
 }
 
 stream_t *stream_create(int sock){

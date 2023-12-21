@@ -11,6 +11,12 @@ int main(){
     while(1){
         connection_t *conn = stream_server_accept(s);
         puts(conn->address);
+
+        char buff[1024] = { 0 };
+
+        stream_read(conn->stream,buff, 1023);
+
+        puts(buff);
     }
 
 

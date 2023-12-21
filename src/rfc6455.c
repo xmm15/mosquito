@@ -65,11 +65,11 @@ void write_ws_decline(connection_t *conn){
 }
 
 void write_ws_accept(connection_t *conn, map_t *http_req){
-        map_print(http_req);
             bool success = false;
             char *key = createAcceptString(map_get_ref(http_req,"sec-websocket-key"));
 
             if(key == NULL){
+                write_ws_decline(conn);
                 return;
             }
 

@@ -11,6 +11,8 @@
 #include "base64.h"
 #include "http.h"
 #include "connection.h"
+#include "pool.h"
+
 
 extern struct pollfd *pfds;
 extern int fd_count_g;

@@ -52,9 +52,9 @@ void stream_close(stream_t *strm){
     close(strm->handler);
 }
 
-stream_t *stream_create(){
+stream_t *stream_create(int sock){
     stream_t *tmp = malloc(sizeof(stream_t));
-    tmp->handler = -1;
+    tmp->handler = sock;
 
     return tmp;
 }

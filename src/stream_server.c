@@ -24,7 +24,7 @@ void stream_server_listen(stream_server_t *s, size_t port){
 
     memset(&hints, 0, sizeof hints);
 
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
@@ -92,5 +92,37 @@ void stream_server_listen(stream_server_t *s, size_t port){
         perror("listen");
     }
 
+}
+
+void *get_in_addr(struct sockaddr *sa)
+{
+    if (sa->sa_family == AF_INET)
+    {
+        return &(((struct sockaddr_in *)sa)->sin_addr);
+    }
+
+    return &(((struct sockaddr_in6 *)sa)->sin6_addr);
+}
+
+connection_t *stream_server_accept(stream_server_t *s){
+    struct sockaddr_storage their_address;
+    socklen_t len = sizeof their_address;
+    
+    char address[INET6_ADDRSTRLEN];
+
+    int sock = accept(s->sockfd, (struct sockaddr *)&their_address, &len);
+
+    if(sock < 0){
+        perror("socket ");
+        return NULL;
+    }
+
+    inet_ntop(their_address.ss_family, get_in_addr((struct sockaddr *)&their_address), address, INET6_ADDRSTRLEN);
+
+    stream_t *st  = stream_create(sock);
+
+    connection_t *conn = connection_create(st,string_create_copy(inet_ntop(their_address.ss_family, get_in_addr((struct sockaddr *)&their_address), address, INET6_ADDRSTRLEN)));
+
+    return conn;
 }
 

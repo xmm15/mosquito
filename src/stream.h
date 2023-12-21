@@ -16,4 +16,4 @@ size_t stream_write(stream_t *strm, char *buff, size_t *n);
 
 void stream_close(stream_t *strm);
 
-stream_t *stream_create();
+stream_t *stream_create(int sock);

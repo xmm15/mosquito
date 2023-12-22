@@ -50,7 +50,7 @@ void parse_masking_key(int mask,int mask_start,char *bytes,char *mask_bytes);
 
 buff_t *parse_payload(int maskstart,int pay_load_length,char *mask_key,char *bytes);
 
-buff_t *encode_message(char *message,size_t message_len,bool is_last,unsigned int opcode,char *encoded_buff,int *enocoded_buff_len);
+buff_t *encode_message(char *message,size_t message_len,bool is_last,unsigned int opcode);
 
 void send_close_frame(char *client_close_message,int sockfd,int pos);
 

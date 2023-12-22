@@ -403,6 +403,7 @@ buff_t *parse_payload(int maskstart, int pay_load_length, char *mask_key, char *
 
     buff_t *decoded = buff_create();
     decoded->chars = realloc(decoded->chars, pay_load_length + 1);
+    decoded->size = pay_load_length;
 
     if (mask_key == NULL)
     {
@@ -485,11 +486,15 @@ buff_t *encode_message(char *message, size_t message_len, bool is_last, unsigned
 
     unsigned int j = 0;
 
+    encoded->size = message_start;
+
     for (int i = message_start; j < message_len; i++)
     {
         encoded->chars[i] = message[j];
         j++;
     }
+
+    encoded->size += j;
 
     return encoded;
 
@@ -525,12 +530,9 @@ void send_close_frame(char *client_close_message, int sockfd, int pos)
         response_size = 2;
     }
 
-    char close_frame[BUFFER_SIZE] = {0};
-    int close_frame_size;
+    buff_t *cl = encode_message(response, response_size, true, 8);
 
-    encode_message(response, response_size, true, 8, close_frame, &close_frame_size);
-
-    send(sockfd, close_frame, close_frame_size, 0);
+    send(sockfd, cl->chars, cl->size, 0);
 
     del_from_pfds(pfds, pos, &fd_count_g);
     char fake_buff[10];
@@ -559,12 +561,10 @@ void send_pong_frame(char *client_ping_message, int sockfd)
 
     buff_t *b = parse_payload(mask_st, plen, key, client_ping_message);
 
-    char pong_frame[BUFFER_SIZE] = {0};
-    int pong_frame_size;
+    buff_t *t = encode_message(b->chars, b->size, true, 8);
 
-    encode_message(b->chars, b->size, true, 8, pong_frame, &pong_frame_size);
-
-    send(sockfd, pong_frame, pong_frame_size, 0);
+    send(sockfd, t->chars, t->size, 0);
 
     buff_destroy(b);
+    buff_destroy(t);
 }

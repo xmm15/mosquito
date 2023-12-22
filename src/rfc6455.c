@@ -291,24 +291,17 @@ int startChartSystem(void *v)
                     }
 
 
-                    //char response[BUFFER_SIZE] = {0};
-                    //int res_len;
-                    //encode_message("Hello", 5, true, 1, response, &res_len);
-                    //printf("||||||||Response length is %d\n", res_len);
+                    buff_t *ms = encode_message("Hello", 5, true, 1);
 
-                    //parse json -> asign id to fd map.
-
-                    /*for (int j = 0; j < fd_count_g; j++)
+                    for (int j = 0; j < fd_count_g; j++)
                     {
                         int dest_fd = pfds[j].fd;
-                        if (dest_fd != server_fd && dest_fd != sender_fd)
-                        {
-                            if (send(dest_fd, response, res_len, 0) == -1)
+
+                            if (send(dest_fd, ms->chars, ms->size, 0) == -1)
                             {
                                 perror("send");
                             }
-                        }
-                    }*/
+                    }
                 }
             }
         }

@@ -42,7 +42,7 @@ bool buff_append(buff_t *str, unsigned char c)
 
 void buff_print(buff_t *str){
     for(int i = 0; i < str->size; i++){
-        printf("%c, %d ", str->chars[i], str->size);
+        printf("%c", str->chars[i]);
     }
     printf("\n");
 }

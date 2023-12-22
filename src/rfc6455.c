@@ -125,6 +125,8 @@ void *get_in_addr_ws(struct sockaddr *sa)
 
 void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_cnt, int *fd_sz)
 {
+    //fcntl(newfd, F_SETFL, O_NONBLOCK);
+
     mtx_lock(&poll_mutex);
     if (*fd_cnt == *fd_sz)
     {
@@ -159,6 +161,7 @@ int startChartSystem(void *v)
 
     char buf[BUFFER_SIZE];
 
+    buff_t *full_message = buff_create();
 
     fd_count_g = 0;
     fd_size_g = 5;
@@ -193,66 +196,62 @@ int startChartSystem(void *v)
                 int sender_fd = pfds[i].fd;
 
                 //=============================================================================================================
-                string_t *recv_buff = string_create();
+                buff_t *recv_buff = buff_create();
 
                 int nbytes = 0;
+                int total = 0,plen, mask_st;
 
-                puts("===================================================================");
+                bool lenCalculated = false;
+
                 while(true){
-                    nbytes = recv(sender_fd, buf, BUFFER_SIZE, 0);
 
-                    string_concat(recv_buff, buf, nbytes);
-                    
-                    if(nbytes == 0){
-                        puts("rec 0 bytes");
-                        break;
-                    }else if(nbytes < BUFFER_SIZE){
+                    nbytes = read(sender_fd, buf, BUFFER_SIZE);
+
+                    if(!lenCalculated){
+                        parse_payload_length(buf, &plen, &mask_st);
+                        lenCalculated = true;
+                    }
+
+                    total += nbytes;
+
+                    buff_concat(recv_buff, buf, nbytes);
+
+                    if((total >= plen + mask_st + 4) || nbytes <= 0){
                         break;
                     }
 
                 }
-                printf("Buffer is -> %s\n",recv_buff->chars);
 
-
-                //=============================================================================================================
-
-                if (nbytes <= 0)
+                if (nbytes < 0)
                 {
                     if (nbytes == 0)
                     {
-                        printf("pollserver: socket %d hung up\n", sender_fd);
+                        printf("Socket %d hung up\n", sender_fd);
                     }
                     else
                     {
-                        perror("recv error");
+                        perror("read error");
                     }
 
-                    close(pfds[i].fd); // Bye!
+                    close(pfds[i].fd);
                     del_from_pfds(pfds, i, &fd_count_g);
                 }
                 else
                 {
-                    // puts(buf);
-                    int opcode, fin, /*whether set*/ mask, plen, mask_st;
+                    int opcode, fin, /*whether set*/ mask;
 
                     parse_flags(recv_buff->chars, &fin, &opcode, &mask);
 
-                    if(fin){
-                        puts("<===========last fragment==============> ");
-                    }else{
-                        puts("<===========Not last fragment==============> ");
-                    }
+                    bool final = true;
 
                     switch (opcode)
                     {
                     case 0x8:
-                        puts("Close frame received--------------------------");
                         send_close_frame(recv_buff->chars, sender_fd, i);
                         continue;
                         break;
 
                     case 0x9:
-                        puts("ping frame received-----------------");
                         send_pong_frame(recv_buff->chars, sender_fd);
                         continue;
                         break;
@@ -263,26 +262,34 @@ int startChartSystem(void *v)
 
                     case 0x0:
                         puts("continue frame received.............................");
+                        final = false;
                         break;
 
                     default:
-                        puts("normal frame received-----------------------");
+                        final = true;
                         break;
                     }
-
-                    parse_payload_length(recv_buff->chars, &plen, &mask_st);
 
                     char key[5] = {0};
 
                     parse_masking_key(mask, mask_st, recv_buff->chars, key);
 
-                    printf("mask %d fin %d opcode %d length %d mask_start %d\n", mask, fin, opcode, plen, mask_st);
+                    //printf("mask %d fin %d opcode %d length %d mask_start %d\n", mask, fin, opcode, plen, mask_st);
 
-                    char message[BUFFER_SIZE] = {0};
+                    buff_t *message = parse_payload(mask_st, plen, key, recv_buff->chars);
 
-                    parse_payload(mask_st, plen, key, recv_buff->chars, message);
+                    buff_concat(full_message, message->chars, plen);
 
-                    printf("Decoded message is %s\n", message);
+                    buff_destroy(message);
+
+
+                    if(final){
+                        printf("==========FINAL FRAGM# RECEIVED -> %d\n", full_message->size);
+                        printf("Decoded message is\n");
+                        buff_print(full_message);
+                        buff_empty(full_message);
+                    }
+
 
                     //char response[BUFFER_SIZE] = {0};
                     //int res_len;
@@ -390,9 +397,12 @@ void parse_masking_key(int mask, int mask_start, char *bytes, char *mask_bytes)
     mask_bytes[3] = bytes[mask_start + 3];
 }
 
-void parse_payload(int maskstart, int pay_load_length, char *mask_key, char *bytes, char *decoded_payload)
+buff_t *parse_payload(int maskstart, int pay_load_length, char *mask_key, char *bytes)
 {
     int payload_start = maskstart + 4;
+
+    buff_t *decoded = buff_create();
+    decoded->chars = realloc(decoded->chars, pay_load_length + 1);
 
     if (mask_key == NULL)
     {
@@ -401,22 +411,27 @@ void parse_payload(int maskstart, int pay_load_length, char *mask_key, char *byt
         int j = 0;
         for (int i = payload_start; j < pay_load_length; i++)
         {
-            decoded_payload[j] = (unsigned char)bytes[i];
+            decoded->chars[j] = (unsigned char)bytes[i];
             j++;
         }
-        return;
+        return decoded;
     }
 
     int j = 0;
     for (int i = payload_start; j < pay_load_length; i++)
     {
-        decoded_payload[j] = (char)bytes[i] ^ mask_key[j % 4];
+        decoded->chars[j] = (char)bytes[i] ^ mask_key[j % 4];
         j++;
     }
+
+    return decoded;
 }
 
-void encode_message(char *message, size_t message_len, bool is_last, unsigned int opcode, char *encoded_buff, int *encoded_buff_len)
+buff_t *encode_message(char *message, size_t message_len, bool is_last, unsigned int opcode)
 {
+    buff_t *encoded = buff_create();
+    encoded->chars = realloc(encoded->chars, message_len + 1);
+
     int first_byte = 0b00000000;
     int second_byte = 0b00000000;
 
@@ -427,7 +442,7 @@ void encode_message(char *message, size_t message_len, bool is_last, unsigned in
 
     first_byte = first_byte | opcode;
 
-    encoded_buff[0] = first_byte;
+    encoded->chars[0] = first_byte;
 
     int message_start = 2;
 
@@ -435,15 +450,15 @@ void encode_message(char *message, size_t message_len, bool is_last, unsigned in
     {
         second_byte = second_byte | message_len;
 
-        encoded_buff[1] = second_byte;
+        encoded->chars[1] = second_byte;
     }
     else if (message_len >= 126 && message_len < 0b10000000000000000)
     {
         second_byte = second_byte | 126;
 
-        encoded_buff[1] = second_byte;
-        encoded_buff[2] = (message_len & 0b1111111111111111) >> 8;
-        encoded_buff[3] = (message_len & 0b0000000011111111);
+        encoded->chars[1] = second_byte;
+        encoded->chars[2] = (message_len & 0b1111111111111111) >> 8;
+        encoded->chars[3] = (message_len & 0b0000000011111111);
 
         message_start = 4;
     }
@@ -451,33 +466,33 @@ void encode_message(char *message, size_t message_len, bool is_last, unsigned in
     {
         second_byte = second_byte | 127;
 
-        encoded_buff[1] = second_byte;
+        encoded->chars[1] = second_byte;
 
         unsigned long long len = (unsigned long long)message_len;
 
         /* LOL */
-        encoded_buff[2] = (len & 0b1111111100000000000000000000000000000000000000000000000000000000) >> 56;
-        encoded_buff[3] = (len & 0b0000000011111111000000000000000000000000000000000000000000000000) >> 48;
-        encoded_buff[4] = (len & 0b0000000000000000111111110000000000000000000000000000000000000000) >> 40;
-        encoded_buff[5] = (len & 0b0000000000000000000000001111111100000000000000000000000000000000) >> 32;
-        encoded_buff[6] = (len & 0b0000000000000000000000000000000011111111000000000000000000000000) >> 24;
-        encoded_buff[7] = (len & 0b0000000000000000000000000000000000000000111111110000000000000000) >> 16;
-        encoded_buff[8] = (len & 0b0000000000000000000000000000000000000000000000001111111100000000) >> 8;
-        encoded_buff[9] = (len & 0b0000000000000000000000000000000000000000000000000000000011111111);
+        encoded->chars[2] = (len & 0b1111111100000000000000000000000000000000000000000000000000000000) >> 56;
+        encoded->chars[3] = (len & 0b0000000011111111000000000000000000000000000000000000000000000000) >> 48;
+        encoded->chars[4] = (len & 0b0000000000000000111111110000000000000000000000000000000000000000) >> 40;
+        encoded->chars[5] = (len & 0b0000000000000000000000001111111100000000000000000000000000000000) >> 32;
+        encoded->chars[6] = (len & 0b0000000000000000000000000000000011111111000000000000000000000000) >> 24;
+        encoded->chars[7] = (len & 0b0000000000000000000000000000000000000000111111110000000000000000) >> 16;
+        encoded->chars[8] = (len & 0b0000000000000000000000000000000000000000000000001111111100000000) >> 8;
+        encoded->chars[9] = (len & 0b0000000000000000000000000000000000000000000000000000000011111111);
 
         message_start = 10;
     }
 
     unsigned int j = 0;
-    *encoded_buff_len = message_start;
 
     for (int i = message_start; j < message_len; i++)
     {
-        encoded_buff[i] = message[j];
+        encoded->chars[i] = message[j];
         j++;
     }
 
-    *encoded_buff_len += j;
+    return encoded;
+
 }
 
 void send_close_frame(char *client_close_message, int sockfd, int pos)
@@ -490,8 +505,7 @@ void send_close_frame(char *client_close_message, int sockfd, int pos)
 
     parse_masking_key(1 /*always 1 from client*/, mask_st, client_close_message, key); 
 
-    char message[BUFFER_SIZE] = {0};
-    parse_payload(mask_st, plen, key, client_close_message, message);
+    buff_t *b = parse_payload(mask_st, plen, key, client_close_message);
 
     // int status_code = 0; later use
     size_t response_size = 0;
@@ -506,8 +520,8 @@ void send_close_frame(char *client_close_message, int sockfd, int pos)
          */
         // status_code = createIntFromByte(status,2);
 
-        response[0] = message[0];
-        response[1] = message[1];
+        response[0] = b->chars[0];
+        response[1] = b->chars[1];
         response_size = 2;
     }
 
@@ -529,6 +543,8 @@ void send_close_frame(char *client_close_message, int sockfd, int pos)
     }
 
     close(sockfd);
+
+    buff_destroy(b);
 }
 
 void send_pong_frame(char *client_ping_message, int sockfd)
@@ -541,13 +557,14 @@ void send_pong_frame(char *client_ping_message, int sockfd)
 
     parse_masking_key(1 /*always 1 from client*/, mask_st, client_ping_message, key);
 
-    char message[BUFFER_SIZE] = {0};
-    parse_payload(mask_st, plen, key, client_ping_message, message);
+    buff_t *b = parse_payload(mask_st, plen, key, client_ping_message);
 
     char pong_frame[BUFFER_SIZE] = {0};
     int pong_frame_size;
 
-    encode_message(message, plen, true, 8, pong_frame, &pong_frame_size);
+    encode_message(b->chars, b->size, true, 8, pong_frame, &pong_frame_size);
 
     send(sockfd, pong_frame, pong_frame_size, 0);
+
+    buff_destroy(b);
 }

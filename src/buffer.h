@@ -15,6 +15,10 @@ struct buff
 
 buff_t *buff_create();
 
-void buff_concat(buff_t *dest, char *src, size_t len);
+void buff_concat(buff_t *dest, unsigned char *src, size_t len);
 
-bool buff_destroy(buff_t *str);
+void buff_destroy(buff_t *str);
+
+void buff_print(buff_t *str);
+
+void buff_empty(buff_t *str);

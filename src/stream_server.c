@@ -117,6 +117,8 @@ connection_t *stream_server_accept(stream_server_t *s){
         return NULL;
     }
 
+    //fcntl(sock, F_SETFL, O_NONBLOCK);
+
     inet_ntop(their_address.ss_family, get_in_addr((struct sockaddr *)&their_address), address, INET6_ADDRSTRLEN);
 
 

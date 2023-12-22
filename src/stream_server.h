@@ -8,6 +8,7 @@
 #include <string.h>
 #include "_string.h"
 #include "connection.h"
+#include "fcntl.h"
 
 
 typedef struct stream_server stream_server_t;

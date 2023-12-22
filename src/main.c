@@ -23,7 +23,8 @@ int main(){
 
         char buff[4096] = { 0 };
 
-        recv(conn->sock,buff, 1023,0);
+        int r = recv(conn->sock,buff, 1023,0);
+
 
         if(strstr(buff, "\r\n\r\n")){
             map_t *m = parse_http_req(buff);
@@ -31,6 +32,8 @@ int main(){
             write_ws_accept(conn,m);
             map_destroy(m);
         }
+
+        if(r == 0){ break; }
         //printf("Haeder size is => ")
 
         //puts(buff);
@@ -38,3 +41,12 @@ int main(){
 
 
 }
+
+// int mairn(){
+//     buff_t *b = buff_create();
+// 
+//     buff_concat(b,"hello", 5);
+//     buff_concat(b,"hello", 4);
+// 
+//     buff_print(b);
+// }

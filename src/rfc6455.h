@@ -12,6 +12,9 @@
 #include "http.h"
 #include "connection.h"
 #include "pool.h"
+#include "buffer.h"
+#include <fcntl.h>
+#include <errno.h>
 
 
 extern struct pollfd *pfds;
@@ -45,9 +48,9 @@ void parse_payload_length(char *bytes, int *payloadLength, int *maskStart);
 
 void parse_masking_key(int mask,int mask_start,char *bytes,char *mask_bytes);
 
-void parse_payload(int maskstart,int pay_load_length,char *mask_key,char *bytes,char *decoded_payload);
+buff_t *parse_payload(int maskstart,int pay_load_length,char *mask_key,char *bytes);
 
-void encode_message(char *message,size_t message_len,bool is_last,unsigned int opcode,char *encoded_buff,int *enocoded_buff_len);
+buff_t *encode_message(char *message,size_t message_len,bool is_last,unsigned int opcode,char *encoded_buff,int *enocoded_buff_len);
 
 void send_close_frame(char *client_close_message,int sockfd,int pos);
 

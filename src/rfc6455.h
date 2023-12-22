@@ -23,7 +23,7 @@ extern bool keep_chat_alive;
 extern list_t *pfd_ids;
 
 #define GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-#define BUFFER_SIZE 1024 * 1024
+#define BUFFER_SIZE 1024
 
 bool validate_WS_connection(map_t *request);
 

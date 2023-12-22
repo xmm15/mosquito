@@ -12,7 +12,7 @@ int main(){
 
     tpool_add_work(t, startChartSystem, NULL);
 
-    stream_server_t *s = stream_server_create(10,false,false);
+    stream_server_t *s = stream_server_create(10,true,true);
 
     stream_server_listen(s, 2000);
 
@@ -27,6 +27,7 @@ int main(){
 
         if(strstr(buff, "\r\n\r\n")){
             map_t *m = parse_http_req(buff);
+            map_print(m);
             write_ws_accept(conn,m);
             map_destroy(m);
         }

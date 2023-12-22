@@ -159,6 +159,7 @@ int startChartSystem(void *v)
 
     char buf[BUFFER_SIZE];
 
+
     fd_count_g = 0;
     fd_size_g = 5;
     pfds = malloc(sizeof *pfds * fd_size_g);
@@ -190,7 +191,30 @@ int startChartSystem(void *v)
             if (pfds[i].revents & POLLIN)
             {
                 int sender_fd = pfds[i].fd;
-                int nbytes = recv(sender_fd, buf, sizeof buf, 0);
+
+                //=============================================================================================================
+                string_t *recv_buff = string_create();
+
+                int nbytes = 0;
+
+                puts("===================================================================");
+                while(true){
+                    nbytes = recv(sender_fd, buf, BUFFER_SIZE, 0);
+
+                    string_concat(recv_buff, buf, nbytes);
+                    
+                    if(nbytes == 0){
+                        puts("rec 0 bytes");
+                        break;
+                    }else if(nbytes < BUFFER_SIZE){
+                        break;
+                    }
+
+                }
+                printf("Buffer is -> %s\n",recv_buff->chars);
+
+
+                //=============================================================================================================
 
                 if (nbytes <= 0)
                 {
@@ -211,19 +235,25 @@ int startChartSystem(void *v)
                     // puts(buf);
                     int opcode, fin, /*whether set*/ mask, plen, mask_st;
 
-                    parse_flags(buf, &fin, &opcode, &mask);
+                    parse_flags(recv_buff->chars, &fin, &opcode, &mask);
+
+                    if(fin){
+                        puts("<===========last fragment==============> ");
+                    }else{
+                        puts("<===========Not last fragment==============> ");
+                    }
 
                     switch (opcode)
                     {
                     case 0x8:
                         puts("Close frame received--------------------------");
-                        send_close_frame(buf, sender_fd, i);
+                        send_close_frame(recv_buff->chars, sender_fd, i);
                         continue;
                         break;
 
                     case 0x9:
                         puts("ping frame received-----------------");
-                        send_pong_frame(buf, sender_fd);
+                        send_pong_frame(recv_buff->chars, sender_fd);
                         continue;
                         break;
 
@@ -231,29 +261,33 @@ int startChartSystem(void *v)
                         continue;
                         break;
 
+                    case 0x0:
+                        puts("continue frame received.............................");
+                        break;
+
                     default:
                         puts("normal frame received-----------------------");
                         break;
                     }
 
-                    parse_payload_length(buf, &plen, &mask_st);
+                    parse_payload_length(recv_buff->chars, &plen, &mask_st);
 
                     char key[5] = {0};
 
-                    parse_masking_key(mask, mask_st, buf, key);
+                    parse_masking_key(mask, mask_st, recv_buff->chars, key);
 
                     printf("mask %d fin %d opcode %d length %d mask_start %d\n", mask, fin, opcode, plen, mask_st);
 
                     char message[BUFFER_SIZE] = {0};
 
-                    parse_payload(mask_st, plen, key, buf, message);
+                    parse_payload(mask_st, plen, key, recv_buff->chars, message);
 
                     printf("Decoded message is %s\n", message);
 
-                    char response[BUFFER_SIZE] = {0};
-                    int res_len;
-                    encode_message("Hello", 5, true, 1, response, &res_len);
-                    printf("||||||||Response length is %d", res_len);
+                    //char response[BUFFER_SIZE] = {0};
+                    //int res_len;
+                    //encode_message("Hello", 5, true, 1, response, &res_len);
+                    //printf("||||||||Response length is %d\n", res_len);
 
                     //parse json -> asign id to fd map.
 

@@ -8,6 +8,7 @@ connection_t *connection_create(int sock, char *address){
 }
 
 void connection_free(connection_t *c){
+    if(c->address) free(c->address);
     close(c->sock);
     free(c);
 }

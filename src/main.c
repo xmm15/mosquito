@@ -22,39 +22,18 @@ void handleMessage(message_t *m) {
     // read the full message
     read(m->fd, j, m->message_length);
 
-
-    // decode message
     buff_t *b = parse_payload(m->mask_start, m->message_length, m->mask, j);
 
+    puts ((char *) b->chars);
 
-    // dispaly message
-    puts(b->chars);
+    buff_t *f = encode_message("echo", 4, true, 1);
 
-
-                    // to send to other clients
-
-
-                    // encode message first
-                    buff_t *ms = encode_message(b->chars, b->size, true, 1);
-
-                    for (int j = 0; j < fd_count_g; j++)
-                    {
-                        int dest_fd = pfds[j].fd;
-
-                            if (send(dest_fd, ms->chars, ms->size, 0) == -1)
-                            {
-                                perror("send");
-                            }
-                    }
-
-
-    // free message
-    buff_destroy(b);
+    send(m->fd, f->chars, f->size, 0);
 
 }
 
 int main(){
-
+    
     // how to start an instance
 
 

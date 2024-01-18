@@ -129,10 +129,10 @@ void *get_in_addr_ws(struct sockaddr *sa)
     return &(((struct sockaddr_in6 *)sa)->sin6_addr);
 }
 
+
 void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_cnt, int *fd_sz)
 {
-    // fcntl(newfd, F_SETFL, O_NONBLOCK);
-
+    // fcntl(newfd, F_SETFL, O_NONBLOCK)
     mtx_lock(&poll_mutex);
     if (*fd_cnt == *fd_sz)
     {
@@ -142,10 +142,10 @@ void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_cnt, int *fd_sz)
     (*pfds)[*fd_cnt].fd = newfd;
     (*pfds)[*fd_cnt].events = POLLIN;
     (*fd_cnt)++;
+
+
     mtx_unlock(&poll_mutex);
     cnd_signal(&poll_condition);
-
-    printf("Socket added > new size= %d\n", fd_count_g);
 }
 
 void del_from_pfds(struct pollfd pfds[], int i, int *fd_cnt)
@@ -156,14 +156,11 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_cnt)
     mtx_unlock(&poll_mutex);
 }
 
-void sigint_handler(int sig) {
-    puts("sigint raised");
-}
 
 int startChartSystem(void *v)
 {
-    signal(SIGINT, sigint_handler);
-    
+    //signal(SIGALRM, sigAlarmHandler);
+
     keep_chat_alive = true;
     puts("Server online");
     if (v != NULL)
@@ -175,16 +172,12 @@ int startChartSystem(void *v)
 
     char *buf = alloca(50);
 
-    buff_t *full_message = buff_create();
-
     fd_count_g = 0;
-    fd_size_g = 5;
+    fd_size_g = 500;
     pfds = malloc(sizeof *pfds * fd_size_g);
 
     while (keep_chat_alive)
     {
-
-        puts("block on wait___________________");
         if (fd_count_g == 0)
         {
             mtx_lock(&poll_mutex);
@@ -194,37 +187,35 @@ int startChartSystem(void *v)
             mtx_unlock(&poll_mutex);
         }
 
-        puts("pass wait ______________________");
-
         if (!keep_chat_alive)
             break;
 
-        puts("block on polll________________");
         int poll_count = poll(pfds, fd_count_g, -1);
-        puts("pass poll_______________");
 
-        if (poll_count == -1)
+        if (poll_count < 0)
         {
-            perror("poll");
-            exit(1);
+
+            if(errno == EINTR) {
+                puts("Poll interupted");
+                break;
+            } else {
+                perror("poll");
+                exit(1);
+            }
         }
-        
 
         for (int i = 0; i < fd_count_g; i++)
         {
             if (pfds[i].revents & POLLIN)
             {
-
-                printf("new message from sock %d\n", i);
                 int sender_fd = pfds[i].fd;
 
                 int nbytes = 0;
-                int total = 0, plen, mask_st;
+                int plen, mask_st;
 
                 bool oneClosed = false;
                 
                 {
-                    puts("blocking here______________________");
                     nbytes = recv(sender_fd, buf, 50, MSG_PEEK);
 
 
@@ -245,15 +236,10 @@ int startChartSystem(void *v)
 
                     nbytes = recv(sender_fd, buf, mask_st + 4, 0);
 
-                    printf("BYTES READ %d\n", nbytes);
-
                     switch (new_message.opcode)
                     {
                     case 0x8:
-                        //recv(sender_fd, buf, new_message.message_length, 0);
-                        puts("about to close a socket");
                         send_close_frame(buf, sender_fd, i);
-                        puts("============================================");
                         oneClosed = true;
                         break;
 
@@ -266,9 +252,6 @@ int startChartSystem(void *v)
                         recv(sender_fd, buf, new_message.message_length, 0);
                         break;
 
-                        /*case 0x0:
-                            break;*/
-
                     default:
                         onMessage(&new_message);
                         break;
@@ -279,19 +262,13 @@ int startChartSystem(void *v)
                 {
                         if (nbytes <= 0 || oneClosed)
                         {
-                            if (nbytes == 0)
-                            {
-                                printf("Socket %d hung up\n", sender_fd);
-                            }
-                            else if(nbytes < 0)
+                            if(nbytes < 0)
                             {
                                 perror("read error");
                             }
 
                             close(pfds[i].fd);
                             del_from_pfds(pfds, i, &fd_count_g);
-
-                            printf("Socket removed > new size= %d\n", fd_count_g);
 
                         }
                 }
@@ -482,7 +459,7 @@ buff_t *encode_message(char *message, size_t message_len, bool is_last, unsigned
     return encoded;
 }
 
-void send_close_frame(char *client_close_message, int sockfd, int pos)
+void send_close_frame(char *client_close_message, int sockfd, int __attribute__((unused)) pos)
 {
 
     int plen, mask_st;
@@ -536,10 +513,18 @@ void send_pong_frame(char *client_ping_message, int sockfd)
 
     buff_t *b = parse_payload(mask_st, plen, key, client_ping_message);
 
-    buff_t *t = encode_message(b->chars, b->size, true, 8);
+    buff_t *t = encode_message((char *)(b->chars), b->size, true, 8);
 
     send(sockfd, t->chars, t->size, 0);
 
     buff_destroy(b);
+    buff_destroy(t);
+}
+
+
+void send_ping_frame(int sockfd) {
+    buff_t *t = encode_message("ping", 4, true, 0x9);
+
+    send(sockfd, t->chars, t->size, 0);
     buff_destroy(t);
 }

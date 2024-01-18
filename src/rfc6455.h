@@ -36,16 +36,16 @@ typedef struct message_t message_t;
 
 struct message_t {
     stream_t *stream;
-    bool final;
+    int final;
     int opcode;
     char *mask;
-    bool masked;
+    int masked;
     int mask_start;
     size_t message_length;
     int fd;
 };
 
-void sigint_handler(int sig);
+void sigAlarmHandler(int sig);
 
 typedef void (*on_message)(message_t *message);
 

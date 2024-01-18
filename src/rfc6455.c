@@ -159,7 +159,7 @@ int startChartSystem(void *v)
     cnd_init(&poll_condition);
     mtx_init(&poll_mutex, 0);
 
-    char buf[BUFFER_SIZE];
+    char *buf = alloca(50);
 
     buff_t *full_message = buff_create();
 
@@ -204,22 +204,35 @@ int startChartSystem(void *v)
 
                 while(true){
 
-                    nbytes = read(sender_fd, buf, BUFFER_SIZE);
+                    nbytes = recv(sender_fd, buf, 50, MSG_PEEK);
 
-                    if(!lenCalculated){
-                        parse_payload_length(buf, &plen, &mask_st);
-                        lenCalculated = true;
-                    }
+                    parse_payload_length(buf, &plen, &mask_st);
 
-                    total += nbytes;
+                    message_t new_message;
 
-                    buff_concat(recv_buff, buf, nbytes);
+                    new_message.message_length = plen;
 
-                    if((total >= plen + mask_st + 4) || nbytes <= 0){
-                        break;
-                    }
+                    parse_flags(buf, &(new_message.final), &(new_message.opcode), &(new_message.masked));
+
+                    char key[5] = {0};
+                    parse_masking_key(mask_st, buf, key);
+
+                    new_message.mask = key;
+                    new_message.mask_start = mask_st;
+                    new_message.fd = sender_fd,
+
+                    recv(sender_fd, buf, mask_st + 4, 0);
+
+                    onMessage(&new_message);
+
+                    printf("BYTES READ %d\n", nbytes);
+
+                    break;
+
 
                 }
+
+                break;
 
                 if (nbytes < 0)
                 {
@@ -271,9 +284,9 @@ int startChartSystem(void *v)
 
                     char key[5] = {0};
 
-                    parse_masking_key(mask, mask_st, recv_buff->chars, key);
+                    //parse_masking_key(mask, mask_st, recv_buff->chars, key);
 
-                    //printf("mask %d fin %d opcode %d length %d mask_start %d\n", mask, fin, opcode, plen, mask_st);
+                    printf("mask %d fin %d opcode %d length %d mask_start %d\n", mask, fin, opcode, plen, mask_st);
 
                     buff_t *message = parse_payload(mask_st, plen, key, recv_buff->chars);
 
@@ -376,13 +389,8 @@ void parse_payload_length(char *bytes, int *payloadLength, int *maskStart)
     *maskStart = mask_key_start;
 }
 
-void parse_masking_key(int mask, int mask_start, char *bytes, char *mask_bytes)
+void parse_masking_key(int mask_start, char *bytes, char *mask_bytes)
 {
-    if (!mask)
-    {
-        return;
-    }
-
     mask_bytes[0] = bytes[mask_start];
     mask_bytes[1] = bytes[mask_start + 1];
     mask_bytes[2] = bytes[mask_start + 2];
@@ -391,7 +399,9 @@ void parse_masking_key(int mask, int mask_start, char *bytes, char *mask_bytes)
 
 buff_t *parse_payload(int maskstart, int pay_load_length, char *mask_key, char *bytes)
 {
-    int payload_start = maskstart + 4;
+    //int payload_start = maskstart + 4;
+
+    int payload_start = 0;
 
     buff_t *decoded = buff_create();
     decoded->chars = realloc(decoded->chars, pay_load_length + 1);
@@ -500,7 +510,7 @@ void send_close_frame(char *client_close_message, int sockfd, int pos)
 
     char key[5] = {0};
 
-    parse_masking_key(1 /*always 1 from client*/, mask_st, client_close_message, key); 
+    parse_masking_key(mask_st, client_close_message, key); 
 
     buff_t *b = parse_payload(mask_st, plen, key, client_close_message);
 
@@ -549,7 +559,7 @@ void send_pong_frame(char *client_ping_message, int sockfd)
 
     char key[5] = {0};
 
-    parse_masking_key(1 /*always 1 from client*/, mask_st, client_ping_message, key);
+    parse_masking_key(mask_st, client_ping_message, key);
 
     buff_t *b = parse_payload(mask_st, plen, key, client_ping_message);
 

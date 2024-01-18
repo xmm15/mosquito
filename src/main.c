@@ -6,7 +6,24 @@
 #include "pool.h"
 #include "rfc6455.h"
 
+on_message onMessage;
+
+void newMessage(message_t *m) {
+    puts("new message received");
+
+    char j[1000] = {0};
+
+    read(m->fd, j, m->message_length);
+
+    buff_t *b = parse_payload(m->mask_start, m->message_length, m->mask, j);
+
+    puts(b->chars);
+
+}
+
 int main(){
+
+    onMessage = newMessage;
 
     tpool_t *t = tpool_create(5);
 

@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stream.h>
+#include <alloca.h>
 
 
 extern struct pollfd *pfds;
@@ -26,6 +27,7 @@ extern mtx_t poll_mutex;
 extern bool keep_chat_alive;
 extern list_t *pfd_ids;
 
+
 #define GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define BUFFER_SIZE 1024
 
@@ -33,7 +35,18 @@ typedef struct message_t message_t;
 
 struct message_t {
     stream_t *stream;
+    bool final;
+    int opcode;
+    char *mask;
+    bool masked;
+    int mask_start;
+    size_t message_length;
+    int fd;
 };
+
+typedef void (*on_message)(message_t *message);
+
+extern on_message onMessage;
 
 bool validate_WS_connection(map_t *request);
 
@@ -53,7 +66,7 @@ void parse_flags(char *bytes,int *fin, int *opcode , int *mask);
 
 void parse_payload_length(char *bytes, int *payloadLength, int *maskStart);
 
-void parse_masking_key(int mask,int mask_start,char *bytes,char *mask_bytes);
+void parse_masking_key(int mask_start,char *bytes,char *mask_bytes);
 
 buff_t *parse_payload(int maskstart,int pay_load_length,char *mask_key,char *bytes);
 

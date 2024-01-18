@@ -5,6 +5,7 @@
 #include "_string.h"
 #include <poll.h>
 #include <openssl/ssl.h>
+#include <assert.h>
 
 
 typedef struct stream_t stream_t;

@@ -31,7 +31,8 @@ bool validate_WS_connection(map_t *request)
 
 char *createAcceptString(char *input)
 {
-    if(input == NULL){
+    if (input == NULL)
+    {
         return NULL;
     }
 
@@ -50,51 +51,56 @@ char *createAcceptString(char *input)
     return (char *)x_64ret;
 }
 
-void write_ws_decline(connection_t *conn){
+void write_ws_decline(connection_t *conn)
+{
     response_builder *rs = response_builder_create();
     response_builder_set_code(rs, "403");
-    response_builder_set_status_name(rs,"Forbidden");
+    response_builder_set_status_name(rs, "Forbidden");
 
     char *resp = response_builder_to_string(rs);
 
-    send(conn->sock, resp, strlen(resp),0);
+    send(conn->sock, resp, strlen(resp), 0);
 
     connection_free(conn);
     free(resp);
     response_builder_free(rs);
 }
 
-void write_ws_accept(connection_t *conn, map_t *http_req){
-            bool success = false;
-            char *key = createAcceptString(map_get_ref(http_req,"sec-websocket-key"));
+void write_ws_accept(connection_t *conn, map_t *http_req)
+{
+    bool success = false;
+    char *key = createAcceptString(map_get_ref(http_req, "sec-websocket-key"));
 
-            if(key == NULL){
-                write_ws_decline(conn);
-                return;
-            }
+    if (key == NULL)
+    {
+        write_ws_decline(conn);
+        return;
+    }
 
-            response_builder *rs = response_builder_create();
-            response_builder_set_code(rs, "101");
-            response_builder_set_status_name(rs, "Switching Protocols");
-            response_builder_set_header(rs,"Connection","Upgrade");
-            response_builder_set_header(rs,"Upgrade","websocket");
+    response_builder *rs = response_builder_create();
+    response_builder_set_code(rs, "101");
+    response_builder_set_status_name(rs, "Switching Protocols");
+    response_builder_set_header(rs, "Connection", "Upgrade");
+    response_builder_set_header(rs, "Upgrade", "websocket");
 
-            response_builder_set_header(rs,"Sec-WebSocket-Accept",key);
+    response_builder_set_header(rs, "Sec-WebSocket-Accept", key);
 
-            char *resp = response_builder_to_string(rs);
-            if(resp)
-            {
-                if(send(conn->sock,resp,strlen(resp),0) > 0){
+    char *resp = response_builder_to_string(rs);
+    if (resp)
+    {
+        if (send(conn->sock, resp, strlen(resp), 0) > 0)
+        {
 
-                    add_to_pfds(&pfds,conn->sock,&fd_count_g,&fd_size_g);
-                    success = true;
-                }
-            }
-            
-            free(resp);
-            response_builder_free(rs);
+            add_to_pfds(&pfds, conn->sock, &fd_count_g, &fd_size_g);
+            success = true;
+        }
+    }
 
-            if(!success) connection_free(conn);
+    free(resp);
+    response_builder_free(rs);
+
+    if (!success)
+        connection_free(conn);
 }
 
 unsigned int createIntFromByte(unsigned int bytes[], size_t len)
@@ -125,12 +131,12 @@ void *get_in_addr_ws(struct sockaddr *sa)
 
 void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_cnt, int *fd_sz)
 {
-    //fcntl(newfd, F_SETFL, O_NONBLOCK);
+    // fcntl(newfd, F_SETFL, O_NONBLOCK);
 
     mtx_lock(&poll_mutex);
     if (*fd_cnt == *fd_sz)
     {
-        *fd_sz *= 2; 
+        *fd_sz *= 2;
         *pfds = realloc(*pfds, sizeof(**pfds) * (*fd_sz));
     }
     (*pfds)[*fd_cnt].fd = newfd;
@@ -138,6 +144,8 @@ void add_to_pfds(struct pollfd *pfds[], int newfd, int *fd_cnt, int *fd_sz)
     (*fd_cnt)++;
     mtx_unlock(&poll_mutex);
     cnd_signal(&poll_condition);
+
+    printf("Socket added > new size= %d\n", fd_count_g);
 }
 
 void del_from_pfds(struct pollfd pfds[], int i, int *fd_cnt)
@@ -148,8 +156,14 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_cnt)
     mtx_unlock(&poll_mutex);
 }
 
+void sigint_handler(int sig) {
+    puts("sigint raised");
+}
+
 int startChartSystem(void *v)
 {
+    signal(SIGINT, sigint_handler);
+    
     keep_chat_alive = true;
     puts("Server online");
     if (v != NULL)
@@ -169,6 +183,8 @@ int startChartSystem(void *v)
 
     while (keep_chat_alive)
     {
+
+        puts("block on wait___________________");
         if (fd_count_g == 0)
         {
             mtx_lock(&poll_mutex);
@@ -178,33 +194,39 @@ int startChartSystem(void *v)
             mtx_unlock(&poll_mutex);
         }
 
+        puts("pass wait ______________________");
+
         if (!keep_chat_alive)
             break;
 
+        puts("block on polll________________");
         int poll_count = poll(pfds, fd_count_g, -1);
+        puts("pass poll_______________");
 
         if (poll_count == -1)
         {
             perror("poll");
             exit(1);
         }
+        
 
         for (int i = 0; i < fd_count_g; i++)
         {
             if (pfds[i].revents & POLLIN)
             {
+
+                printf("new message from sock %d\n", i);
                 int sender_fd = pfds[i].fd;
 
-                buff_t *recv_buff = buff_create();
-
                 int nbytes = 0;
-                int total = 0,plen, mask_st;
+                int total = 0, plen, mask_st;
 
-                bool lenCalculated = false;
-
-                while(true){
-
+                bool oneClosed = false;
+                
+                {
+                    puts("blocking here______________________");
                     nbytes = recv(sender_fd, buf, 50, MSG_PEEK);
+
 
                     parse_payload_length(buf, &plen, &mask_st);
 
@@ -221,105 +243,64 @@ int startChartSystem(void *v)
                     new_message.mask_start = mask_st;
                     new_message.fd = sender_fd,
 
-                    recv(sender_fd, buf, mask_st + 4, 0);
-
-                    onMessage(&new_message);
+                    nbytes = recv(sender_fd, buf, mask_st + 4, 0);
 
                     printf("BYTES READ %d\n", nbytes);
 
-                    break;
-
-
-                }
-
-                break;
-
-                if (nbytes < 0)
-                {
-                    if (nbytes == 0)
-                    {
-                        printf("Socket %d hung up\n", sender_fd);
-                    }
-                    else
-                    {
-                        perror("read error");
-                    }
-
-                    close(pfds[i].fd);
-                    del_from_pfds(pfds, i, &fd_count_g);
-                }
-                else
-                {
-                    int opcode, fin, /*whether set*/ mask;
-
-                    parse_flags(recv_buff->chars, &fin, &opcode, &mask);
-
-                    bool final = true;
-
-                    switch (opcode)
+                    switch (new_message.opcode)
                     {
                     case 0x8:
-                        send_close_frame(recv_buff->chars, sender_fd, i);
-                        continue;
+                        //recv(sender_fd, buf, new_message.message_length, 0);
+                        puts("about to close a socket");
+                        send_close_frame(buf, sender_fd, i);
+                        puts("============================================");
+                        oneClosed = true;
                         break;
 
                     case 0x9:
-                        send_pong_frame(recv_buff->chars, sender_fd);
-                        continue;
+                        recv(sender_fd, buf, new_message.message_length, 0);
+                        send_pong_frame(buf, sender_fd);
                         break;
 
                     case 0xA:
-                        continue;
+                        recv(sender_fd, buf, new_message.message_length, 0);
                         break;
 
-                    case 0x0:
-                        puts("continue frame received.............................");
-                        final = false;
-                        break;
+                        /*case 0x0:
+                            break;*/
 
                     default:
-                        final = true;
+                        onMessage(&new_message);
                         break;
                     }
 
-                    char key[5] = {0};
-
-                    //parse_masking_key(mask, mask_st, recv_buff->chars, key);
-
-                    printf("mask %d fin %d opcode %d length %d mask_start %d\n", mask, fin, opcode, plen, mask_st);
-
-                    buff_t *message = parse_payload(mask_st, plen, key, recv_buff->chars);
-
-                    buff_concat(full_message, message->chars, plen);
-
-                    buff_destroy(message);
-
-
-                    if(final){
-                        printf("==========FINAL FRAGM# RECEIVED -> %d\n", full_message->size);
-                        printf("Decoded message is\n");
-                        buff_print(full_message);
-                        buff_empty(full_message);
-                    }
-
-
-                    buff_t *ms = encode_message("Hello", 5, true, 1);
-
-                    for (int j = 0; j < fd_count_g; j++)
-                    {
-                        int dest_fd = pfds[j].fd;
-
-                            if (send(dest_fd, ms->chars, ms->size, 0) == -1)
-                            {
-                                perror("send");
-                            }
-                    }
                 }
-            }
+
+                {
+                        if (nbytes <= 0 || oneClosed)
+                        {
+                            if (nbytes == 0)
+                            {
+                                printf("Socket %d hung up\n", sender_fd);
+                            }
+                            else if(nbytes < 0)
+                            {
+                                perror("read error");
+                            }
+
+                            close(pfds[i].fd);
+                            del_from_pfds(pfds, i, &fd_count_g);
+
+                            printf("Socket removed > new size= %d\n", fd_count_g);
+
+                        }
+                }
+            
         }
     }
-    puts("Chat destroyed");
-    return 0;
+}
+puts("Chat destroyed");
+return 0;
 }
 
 /**
@@ -399,7 +380,7 @@ void parse_masking_key(int mask_start, char *bytes, char *mask_bytes)
 
 buff_t *parse_payload(int maskstart, int pay_load_length, char *mask_key, char *bytes)
 {
-    //int payload_start = maskstart + 4;
+    // int payload_start = maskstart + 4;
 
     int payload_start = 0;
 
@@ -499,7 +480,6 @@ buff_t *encode_message(char *message, size_t message_len, bool is_last, unsigned
     encoded->size += j;
 
     return encoded;
-
 }
 
 void send_close_frame(char *client_close_message, int sockfd, int pos)
@@ -510,7 +490,7 @@ void send_close_frame(char *client_close_message, int sockfd, int pos)
 
     char key[5] = {0};
 
-    parse_masking_key(mask_st, client_close_message, key); 
+    parse_masking_key(0, client_close_message, key);
 
     buff_t *b = parse_payload(mask_st, plen, key, client_close_message);
 
@@ -536,17 +516,10 @@ void send_close_frame(char *client_close_message, int sockfd, int pos)
 
     send(sockfd, cl->chars, cl->size, 0);
 
-    del_from_pfds(pfds, pos, &fd_count_g);
-    char fake_buff[10];
-    int fake_recv;
+    //del_from_pfds(pfds, pos, &fd_count_g);
 
-    shutdown(sockfd, SHUT_WR);
 
-    while ((fake_recv = recv(sockfd, fake_buff, 10, 0)) != 0)
-    {
-    }
-
-    close(sockfd);
+    //close(sockfd);
 
     buff_destroy(b);
 }
@@ -559,7 +532,7 @@ void send_pong_frame(char *client_ping_message, int sockfd)
 
     char key[5] = {0};
 
-    parse_masking_key(mask_st, client_ping_message, key);
+    parse_masking_key(0, client_ping_message, key);
 
     buff_t *b = parse_payload(mask_st, plen, key, client_ping_message);
 

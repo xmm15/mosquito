@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stream.h>
+#include <signal.h>
 #include <alloca.h>
 
 
@@ -43,6 +44,8 @@ struct message_t {
     size_t message_length;
     int fd;
 };
+
+void sigint_handler(int sig);
 
 typedef void (*on_message)(message_t *message);
 

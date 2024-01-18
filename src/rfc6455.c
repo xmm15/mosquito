@@ -151,7 +151,7 @@ void del_from_pfds(struct pollfd pfds[], int i, int *fd_cnt)
 int startChartSystem(void *v)
 {
     keep_chat_alive = true;
-    puts("Chart SYstem online");
+    puts("Server online");
     if (v != NULL)
     {
     }
@@ -195,7 +195,6 @@ int startChartSystem(void *v)
             {
                 int sender_fd = pfds[i].fd;
 
-                //=============================================================================================================
                 buff_t *recv_buff = buff_create();
 
                 int nbytes = 0;

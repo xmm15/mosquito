@@ -15,6 +15,7 @@
 #include "buffer.h"
 #include <fcntl.h>
 #include <errno.h>
+#include <stream.h>
 
 
 extern struct pollfd *pfds;
@@ -27,6 +28,12 @@ extern list_t *pfd_ids;
 
 #define GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define BUFFER_SIZE 1024
+
+typedef struct message_t message_t;
+
+struct message_t {
+    stream_t *stream;
+};
 
 bool validate_WS_connection(map_t *request);
 
